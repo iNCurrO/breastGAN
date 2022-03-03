@@ -11,6 +11,26 @@ import torch
 from torch_utils import training_stats
 from torch_utils import misc
 from torch_utils.ops import conv2d_gradfix
+from torch.fft import fftn
+from torchvision.transforms.functional import rgb_to_grayscale
+
+def calBeta(img):
+    fftimg = np.array(torch.reshape(abs(fftn(rgb_to_grayscale(img), dim=(-2, -1))), (img.shape[0], img.shape[2], img.shape[3])).cpu().detach().numpy())
+    imageSize = img.size(-1)
+    halfSize = int(imageSize/2)
+
+    xrange = np.concatenate([np.arange(0.5, halfSize+0.5), np.arange(-halfSize+0.5, 0.5)], 0)
+    x, y = np.meshgrid(xrange, xrange)
+    R = np.sqrt(x**2+y**2)
+    f = lambda i, r : fftimg[i, (R >= r-.5) & (R < r+.5)].mean()
+    r = np.linspace(1, halfSize, num=halfSize)
+    mean = [np.vectorize(f)(i, r) for i in range(img.shape[0])]
+    beta = torch.tensor([
+        -np.polyfit(np.log10(np.arange(1 / halfSize, 1 + 1 / halfSize, 1 / halfSize)), np.log10(mean[i]), 1)[0]
+        for i in range(img.shape[0])
+        ]
+                        ).cuda()
+    return beta
 
 #----------------------------------------------------------------------------
 
@@ -66,9 +86,11 @@ class StyleGAN2Loss(Loss):
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
-                training_stats.report('Loss/scores/fake', gen_logits)
-                training_stats.report('Loss/signs/fake', gen_logits.sign())
-                loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
+                beta = calBeta(gen_img)
+                training_stats.report('Loss/scores/fakeG', gen_logits)
+                training_stats.report('Loss/signs/fakeG', gen_logits.sign())
+                training_stats.report('Loss/beta/fakeG', beta)
+                loss_Gmain = torch.nn.functional.softplus(-gen_logits) + 0.1 * torch.sigmoid(3-beta) # -log(sigmoid(gen_logits))
                 training_stats.report('Loss/G/loss', loss_Gmain)
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 loss_Gmain.mean().mul(gain).backward()
