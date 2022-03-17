@@ -35,6 +35,8 @@ def setup_training_loop_kwargs(
     snap       = None, # Snapshot interval: <int>, default = 50 ticks
     metrics    = None, # List of metric names: [], ['fid50k_full'] (default), ...
     seed       = None, # Random seed: <int>, default = 0
+    betaloss   = None, # Coefficient of beta loss: <float>, default = 0
+    targetbeta = None, #target beta value: <float>, default = 3.0
 
     # Dataset.
     data       = None, # Training dataset (required): <path>
@@ -116,6 +118,7 @@ def setup_training_loop_kwargs(
     except IOError as err:
         raise UserError(f'--data: {err}')
 
+
     if cond is None:
         cond = False
     assert isinstance(cond, bool)
@@ -141,6 +144,8 @@ def setup_training_loop_kwargs(
     if mirror:
         desc += '-mirror'
         args.training_set_kwargs.xflip = True
+
+
 
     # ------------------------------------
     # Base config: cfg, gamma, kimg, batch
@@ -203,6 +208,20 @@ def setup_training_loop_kwargs(
             raise UserError('--gamma must be non-negative')
         desc += f'-gamma{gamma:g}'
         args.loss_kwargs.r1_gamma = gamma
+
+    if betaloss is not None:
+        assert isinstance(betaloss, float)
+        if not betaloss >= 0:
+            raise UserError('--betaloss must be non-negative')
+        desc += f'-betaloss{betaloss:g}'
+        args.loss_kwargs.betaloss = betaloss
+
+    if targetbeta is not None:
+        assert isinstance(targetbeta, float)
+        if not targetbeta >= 0:
+            raise UserError('--betaloss must be non-negative')
+        desc += f'-betaloss{targetbeta:g}'
+        args.loss_kwargs.betaloss = targetbeta
 
     if kimg is not None:
         assert isinstance(kimg, int)
@@ -415,6 +434,8 @@ class CommaSeparatedList(click.ParamType):
 # Base config.
 @click.option('--cfg', help='Base config [default: auto]', type=click.Choice(['auto', 'stylegan2', 'paper256', 'paper512', 'paper1024', 'cifar']))
 @click.option('--gamma', help='Override R1 gamma', type=float)
+@click.option('--betaloss', help='Coef. for betalos', type=float)
+@click.option('--targetbeta', help='Target beta value', type=float)
 @click.option('--kimg', help='Override training duration', type=int, metavar='INT')
 @click.option('--batch', help='Override batch size', type=int, metavar='INT')
 

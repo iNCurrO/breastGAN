@@ -427,11 +427,11 @@ def convert_dataset(
             error(f'Image {archive_fname} attributes must be equal across all images of the dataset.  Got:\n' + '\n'.join(err))
 
         # Save the image as an uncompressed PNG.
-        # if channels == 1:
-        #     img = PIL.Image.fromarray(numpy.stack([img, img, img], 2), 'RGB')
-        # else:
-        #     img = PIL.Image.fromarray(img, 'RGB')
-        img = PIL.Image.fromarray(img, { 1: 'L', 3: 'RGB' }[channels])
+        if channels == 1:
+            img = PIL.Image.fromarray(numpy.stack([img, img, img], 2), 'RGB')
+        else:
+            img = PIL.Image.fromarray(img, 'RGB')
+        # img = PIL.Image.fromarray(img, { 1: 'L', 3: 'RGB' }[channels])
         image_bits = io.BytesIO()
         img.save(image_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())

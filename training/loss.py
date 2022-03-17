@@ -41,7 +41,10 @@ class Loss:
 #----------------------------------------------------------------------------
 
 class StyleGAN2Loss(Loss):
-    def __init__(self, device, G_mapping, G_synthesis, D, augment_pipe=None, style_mixing_prob=0.9, r1_gamma=10, pl_batch_shrink=2, pl_decay=0.01, pl_weight=2):
+    def __init__(
+            self, device, G_mapping, G_synthesis, D, augment_pipe=None, style_mixing_prob=0.9,
+            r1_gamma=10, pl_batch_shrink=2, pl_decay=0.01, pl_weight=2, betaloss=0.1, targetbeta=3
+    ):
         super().__init__()
         self.device = device
         self.G_mapping = G_mapping
@@ -54,6 +57,8 @@ class StyleGAN2Loss(Loss):
         self.pl_decay = pl_decay
         self.pl_weight = pl_weight
         self.pl_mean = torch.zeros([], device=device)
+        self.betaloss = betaloss
+        self.targetbeta = targetbeta
 
     def run_G(self, z, c, sync):
         with misc.ddp_sync(self.G_mapping, sync):
@@ -90,7 +95,8 @@ class StyleGAN2Loss(Loss):
                 training_stats.report('Loss/scores/fakeG', gen_logits)
                 training_stats.report('Loss/signs/fakeG', gen_logits.sign())
                 training_stats.report('Loss/beta/fakeG', beta)
-                loss_Gmain = torch.nn.functional.softplus(-gen_logits) + 0.1 * torch.sigmoid(3-beta) # -log(sigmoid(gen_logits))
+                loss_Gmain = torch.nn.functional.softplus(-gen_logits) + \
+                             self.betaloss * torch.abs(torch.sigmoid(self.targetbeta-beta)) # -log(sigmoid(gen_logits))
                 training_stats.report('Loss/G/loss', loss_Gmain)
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 loss_Gmain.mean().mul(gain).backward()
