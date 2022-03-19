@@ -95,8 +95,10 @@ class StyleGAN2Loss(Loss):
                 training_stats.report('Loss/scores/fakeG', gen_logits)
                 training_stats.report('Loss/signs/fakeG', gen_logits.sign())
                 training_stats.report('Loss/beta/fakeG', beta)
-                loss_Gmain = torch.nn.functional.softplus(-gen_logits) + \
-                             self.betaloss * torch.abs(torch.sigmoid(self.targetbeta-beta)) # -log(sigmoid(gen_logits))
+                loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
+                if self.betaloss > 0:
+                    beta = calBeta(gen_img)
+                    loss_Gmain += self.betaloss * torch.abs(torch.sigmoid(self.targetbeta-beta))
                 training_stats.report('Loss/G/loss', loss_Gmain)
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 loss_Gmain.mean().mul(gain).backward()
