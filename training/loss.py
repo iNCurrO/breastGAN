@@ -85,6 +85,7 @@ class StyleGAN2Loss(Loss):
         do_Dmain = (phase in ['Dmain', 'Dboth'])
         do_Gpl   = (phase in ['Greg', 'Gboth']) and (self.pl_weight != 0)
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
+        do_Gbeta = (phase in ['Greg', 'Gboth']) and (self.betaloss > 0)
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:
@@ -93,15 +94,20 @@ class StyleGAN2Loss(Loss):
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
                 training_stats.report('Loss/scores/fakeG', gen_logits)
                 training_stats.report('Loss/signs/fakeG', gen_logits.sign())
-                if self.betaloss > 0:
-                    beta = calBeta(gen_img)
-                    training_stats.report('Loss/beta/fakeG', beta)
-                    loss_Gmain = torch.nn.functional.softplus(-gen_logits)+self.betaloss * torch.abs(torch.sigmoid(self.targetbeta-beta))
-                else:
-                    loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
+                loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
                 training_stats.report('Loss/G/loss', loss_Gmain)
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 loss_Gmain.mean().mul(gain).backward()
+
+        if do_Gbeta:
+            with torch.autograd.profiler.record_function('Gbeta_forward'):
+                gen_img, _gen_ws = self.run_G(gen_z, gen_c, sync=(sync and not do_Gpl)) # May get synced by Gpl.
+                gen_logits = self.run_D(gen_img, gen_c, sync=False)
+                beta = calBeta(gen_img)
+                training_stats.report('Loss/beta/fakeG', beta)
+                loss_Gbeta = self.betaloss * torch.abs(torch.sigmoid(self.targetbeta-beta))
+            with torch.autograd.profiler.record_function('Gbeta_backward'):
+                (gen_img[:, 0, 0, 0] * 0 + loss_Gbeta).mean().mul(gain).backward()
 
         # Gpl: Apply path length regularization.
         if do_Gpl:

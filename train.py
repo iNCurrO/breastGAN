@@ -220,7 +220,7 @@ def setup_training_loop_kwargs(
         assert isinstance(targetbeta, float)
         if not targetbeta >= 0:
             raise UserError('--betaloss must be non-negative')
-        desc += f'-betaloss{targetbeta:g}'
+        desc += f'-targetbeta{targetbeta:g}'
         args.loss_kwargs.betaloss = targetbeta
 
     if kimg is not None:
