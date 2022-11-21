@@ -95,7 +95,7 @@ def image_grid(img, drange, grid_size):
     img = img.reshape(gh, gw, C, H, W)
     img = img.transpose(0, 3, 1, 4, 2)
     img = img.reshape(gh * H, gw * W, C)
-    return img
+    return torch.tensor(img)
 
 #----------------------------------------------------------------------------
 
