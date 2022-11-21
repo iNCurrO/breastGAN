@@ -83,6 +83,20 @@ def save_image_grid(img, fname, drange, grid_size):
     if C == 3:
         PIL.Image.fromarray(img, 'RGB').save(fname)
 
+
+def image_grid(img, drange, grid_size):
+    lo, hi = drange
+    img = np.asarray(img, dtype=np.float32)
+    img = (img - lo) * (255 / (hi - lo))
+    img = np.rint(img).clip(0, 255).astype(np.uint8)
+
+    gw, gh = grid_size
+    _N, C, H, W = img.shape
+    img = img.reshape(gh, gw, C, H, W)
+    img = img.transpose(0, 3, 1, 4, 2)
+    img = img.reshape(gh * H, gw * W, C)
+    return img
+
 #----------------------------------------------------------------------------
 
 def training_loop(
@@ -111,8 +125,8 @@ def training_loop(
     ada_kimg                = 500,      # ADA adjustment speed, measured in how many kimg it takes for p to increase/decrease by one unit.
     total_kimg              = 25000,    # Total length of the training, measured in thousands of real images.
     kimg_per_tick           = 4,        # Progress snapshot interval.
-    image_snapshot_ticks    = 50,       # How often to save image snapshots? None = disable.
-    network_snapshot_ticks  = 50,       # How often to save network snapshots? None = disable.
+    image_snapshot_ticks    = 5,       # How often to save image snapshots? None = disable.
+    network_snapshot_ticks  = 20,       # How often to save network snapshots? None = disable.
     resume_pkl              = None,     # Network pickle to resume training from.
     cudnn_benchmark         = True,     # Enable torch.backends.cudnn.benchmark?
     allow_tf32              = False,    # Enable torch.backends.cuda.matmul.allow_tf32 and torch.backends.cudnn.allow_tf32?
@@ -344,10 +358,15 @@ def training_loop(
                 print()
                 print('Aborting...')
 
+        timestamp = time.time()
         # Save image snapshot.
         if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
             images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
-            save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.png'), drange=[-1,1], grid_size=grid_size)
+            save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.png'), drange=[-1, 1], grid_size=grid_size)
+            if stats_tfevents is not None:
+                global_step = int(cur_nimg / 1e3)
+                walltime = timestamp - start_time
+                stats_tfevents.add_image(name, image_grid(images, drange=[-1, 1], grid_size=grid_size), global_step=global_step, walltime=walltime)
 
         # Save network snapshot.
         snapshot_pkl = None
@@ -389,7 +408,6 @@ def training_loop(
         stats_dict = stats_collector.as_dict()
 
         # Update logs.
-        timestamp = time.time()
         if stats_jsonl is not None:
             fields = dict(stats_dict, timestamp=timestamp)
             stats_jsonl.write(json.dumps(fields) + '\n')
