@@ -366,7 +366,8 @@ def training_loop(
             if stats_tfevents is not None:
                 global_step = int(cur_nimg / 1e3)
                 walltime = timestamp - start_time
-                stats_tfevents.add_image(name, image_grid(images, drange=[-1, 1], grid_size=grid_size), global_step=global_step, walltime=walltime)
+                stats_tfevents.add_image('image', img_tensor=images, global_step=global_step, walltime=walltime)
+                stats_tfevents.add_image('image2', img_tensor=image_grid(images, drange=[-1, 1], grid_size=grid_size), global_step=global_step, walltime=walltime)
 
         # Save network snapshot.
         snapshot_pkl = None
