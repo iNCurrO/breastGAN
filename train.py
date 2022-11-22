@@ -51,6 +51,7 @@ def setup_training_loop_kwargs(
     batch      = None, # Override batch size: <int>
 
     # Discriminator augmentation.
+    diffaugment= None,
     aug        = None, # Augmentation mode: 'ada' (default), 'noaug', 'fixed'
     p          = None, # Specify p for 'fixed' (required): <float>
     target     = None, # Override ADA target for 'ada': <float>, default = depends on aug
@@ -242,7 +243,14 @@ def setup_training_loop_kwargs(
     # Discriminator augmentation: aug, p, target, augpipe
     # ---------------------------------------------------
 
-    if aug is None:
+    if diffaugment is None:
+        diffaugment = 'color,translation,cutout'
+
+    if diffaugment:
+        args.loss_kwargs.diffaugment = diffaugment
+        aug = 'noaug'
+        desc += '-{}'.format(diffaugment.replace(',', '-'))
+    elif aug is None:
         aug = 'ada'
     else:
         assert isinstance(aug, str)

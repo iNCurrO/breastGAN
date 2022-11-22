@@ -13,6 +13,7 @@ from torch_utils import misc
 from torch_utils.ops import conv2d_gradfix
 from torch.fft import fftn
 from torchvision.transforms.functional import rgb_to_grayscale
+from DiffAugment import DiffAugment
 
 def calBeta(img):
     fftimg = np.array(torch.reshape(abs(fftn(rgb_to_grayscale(img), dim=(-2, -1))), (img.shape[0], img.shape[2], img.shape[3])).cpu().detach().numpy())
@@ -42,7 +43,7 @@ class Loss:
 
 class StyleGAN2Loss(Loss):
     def __init__(
-            self, device, G_mapping, G_synthesis, D, augment_pipe=None, style_mixing_prob=0.9,
+            self, device, G_mapping, G_synthesis, D, diffaugment='', augment_pipe=None, style_mixing_prob=0.9,
             r1_gamma=10, pl_batch_shrink=2, pl_decay=0.01, pl_weight=2, betaloss=0.1, targetbeta=3
     ):
         super().__init__()
@@ -50,6 +51,7 @@ class StyleGAN2Loss(Loss):
         self.G_mapping = G_mapping
         self.G_synthesis = G_synthesis
         self.D = D
+        self.diffaugment = diffaugment
         self.augment_pipe = augment_pipe
         self.style_mixing_prob = style_mixing_prob
         self.r1_gamma = r1_gamma
@@ -73,6 +75,8 @@ class StyleGAN2Loss(Loss):
         return img, ws
 
     def run_D(self, img, c, sync):
+        if self.diffaugment:
+            img = DiffAugment(img, policy=self.diffaugment)
         if self.augment_pipe is not None:
             img = self.augment_pipe(img)
         with misc.ddp_sync(self.D, sync):
