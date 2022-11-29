@@ -448,6 +448,7 @@ class CommaSeparatedList(click.ParamType):
 @click.option('--batch', help='Override batch size', type=int, metavar='INT')
 
 # Discriminator augmentation.
+@click.option('--diffaugment', type=bool)
 @click.option('--aug', help='Augmentation mode [default: ada]', type=click.Choice(['noaug', 'ada', 'fixed']))
 @click.option('--p', help='Augmentation probability for --aug=fixed', type=float)
 @click.option('--target', help='ADA target value for --aug=ada', type=float)
